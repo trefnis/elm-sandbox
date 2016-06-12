@@ -22,6 +22,7 @@ main =
 
 type alias Model = 
   { searchUserBar : SearchUserBar.Model
+  , selectedLogin : String
   }
 
 init : ( Model, Cmd Msg )
@@ -29,6 +30,7 @@ init =
   let 
     model = 
       { searchUserBar = SearchUserBar.init
+      , selectedLogin = ""
       }
   in
     ( model, Cmd.none )
@@ -51,13 +53,13 @@ update msg ({ searchUserBar } as model) =
         ( updatedSearchUserBar, searchUserBarCmd, selectedLogin ) = 
           SearchUserBar.update msg searchUserBar
 
-        someText =
+        login =
           case selectedLogin of
             Just userLogin -> userLogin
-            Nothing -> "nothing"
+            Nothing -> model.selectedLogin
 
         newModel = 
-          { model | searchUserBar = updatedSearchUserBar }
+          { model | searchUserBar = updatedSearchUserBar, selectedLogin = login }
 
         cmd =
           Cmd.map SearchBarMsg searchUserBarCmd
@@ -72,6 +74,7 @@ view : Model -> Html Msg
 view ({ searchUserBar } as model) =
   div []
     [ p [] [ text "Find user" ]
+    , p [] [ text <| "user: " ++ model.selectedLogin ]
     , searchUserBarView searchUserBar
     ]
 
