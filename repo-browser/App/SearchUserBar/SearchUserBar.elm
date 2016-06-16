@@ -1,4 +1,4 @@
-module App.SearchUserBar.SearchUserBar exposing (Model, Msg, init, update, view, subscriptions) --where
+module App.SearchUserBar.SearchUserBar exposing (Model, SearchResult, Msg, init, update, view, subscriptions) --where
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -26,15 +26,9 @@ type alias SearchResult =
 
 type alias Msg = SearchBar.Msg SearchResult
 
-update : Msg -> Model -> ( Model, Cmd Msg, Maybe String )
+update : Msg -> Model -> ( Model, Cmd Msg, Maybe SearchResult )
 update msg model =
-  let
-    (model, cmd, selectedResult) =
-      SearchBar.update findUsers msg model
-
-    selectedLogin = Maybe.map .userLogin selectedResult
-  in
-    (model, cmd, selectedLogin)
+  SearchBar.update findUsers msg model
 
 
 -- VIEW
