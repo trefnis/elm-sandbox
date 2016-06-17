@@ -7,13 +7,16 @@ module App.UserRepos.UserRepos exposing (
   update
   ) --where
 
-import App.Api.Api as Api
 import Json.Decode as Json exposing (andThen, (:=))
 import Date exposing (Date)
 import Html exposing (..)
 import Html.Attributes exposing (src, alt, href, width)
 import Html.Events exposing (onClick)
+import Html.App as App
 import Debug
+
+import App.Api.Api as Api
+import App.Pagination.Pagination as Pagination
 
 type alias Model =
   { userLogin : String
@@ -21,8 +24,7 @@ type alias Model =
   , userRepos : List Repo
   , areReposExpanded : Bool
   , isLoading : Bool
-  , reposPerPage : Int
-  , currentPage : Int
+  , pagination : Maybe Pagination.Model
   }
 
 new : String -> String -> ( Model, Cmd ( Msg, Model ) )
@@ -34,8 +36,7 @@ new userLogin avatarUrl =
       , userRepos = []
       , areReposExpanded = False
       , isLoading = True
-      , reposPerPage = 5
-      , currentPage = 0
+      , pagination = Nothing
       }
 
     getUserRepos =
@@ -43,6 +44,8 @@ new userLogin avatarUrl =
         (\apiStatus -> ( Inner <| FetchStatus apiStatus, optimisticUser ) )
         (Api.getUserRepos getReposFromJson userLogin)
   in ( optimisticUser, getUserRepos )
+
+reposPerPage = 10
 
 type alias Repo =
   { url : String
@@ -74,8 +77,7 @@ type Msg
 type InnerMsg
   = Expand
   | Fold
-  | NextPage
-  | PreviousPage
+  | PaginationMsg Pagination.Msg
   | FetchStatus (Api.Status (List Repo))
 
 type OuterMsg 
@@ -91,65 +93,77 @@ update msg model =
     Fold ->
       { model | areReposExpanded = False }
 
-    NextPage ->
+    PaginationMsg msg ->
       let
-        elementsCount = List.length model.userRepos
-        maxPage = 
-          ceiling 
-            <| ((toFloat elementsCount) / (toFloat model.reposPerPage) - 1)
-        nextPage = model.currentPage + 1
+        pagination = model.pagination `Maybe.andThen` 
+          (Result.toMaybe << Pagination.update msg)
       in
-        { model | 
-          currentPage = 
-            if nextPage <= maxPage then nextPage else model.currentPage
-        }
-
-    PreviousPage ->
-      let
-        previousPage = model.currentPage - 1
-      in
-        { model | 
-          currentPage = 
-            if previousPage >= 0 then previousPage else model.currentPage
-        }
+        { model | pagination = pagination }       
 
     (FetchStatus status) ->
       case status of
         Api.FetchFailed error -> model --TODO
 
-        Api.FetchSucceed repos -> 
-          { model | userRepos = repos, isLoading = False }
+        Api.FetchSucceed repos ->
+          let 
+            reposCount = List.length repos
+            pagination = 
+              if reposCount > reposPerPage then
+                Just <| Pagination.init reposPerPage reposCount
+              else
+                Nothing
+          in
+            { model | 
+              userRepos = repos
+            , isLoading = False
+            , pagination = pagination 
+            }
 
 
 -- VIEW
 
 view : Model -> Html Msg
-view ({ userLogin, avatarUrl, userRepos } as model) =
-  div [ onClick <| Inner Expand ]
-    [ div [] [ text userLogin ]
-    , img [ src avatarUrl, alt <| userLogin ++ "'s avatar", width 200 ] []
-    , p [] [ text <| "repos: " ++ (List.length userRepos |> toString) ]
-    , button [ onClick <| Outer Remove ] [ text "remove" ]
-    , div [ onClick <| Inner Fold ] [ text "fold" ]
-    , reposView model
-    , p [ onClick <| Inner NextPage ] [ text "next" ]
-    , p [ onClick <| Inner PreviousPage ] [ text "prev" ]
-    ]
+view ({ userLogin, avatarUrl, userRepos, pagination } as model) =
+  let
+    paginationView = case pagination of
+        Just pagination ->
+          App.map 
+            (\msg -> Inner (PaginationMsg msg)) 
+            (Pagination.view pagination)
+
+        Nothing -> text ""
+
+  in          
+    div [ onClick <| Inner Expand ]
+      [ div [] [ text userLogin ]
+      , img [ src avatarUrl, alt <| userLogin ++ "'s avatar", width 200 ] []
+      , p [] [ text <| "repos: " ++ (List.length userRepos |> toString) ]
+      , button [ onClick <| Outer Remove ] [ text "remove" ]
+      , div [ onClick <| Inner Fold ] [ text "fold" ]
+      , reposView model
+      , paginationView
+      ]
 
 reposView : Model -> Html Msg
-reposView { userRepos, reposPerPage, currentPage } =
-  let 
+reposView { userRepos, pagination } =
+  let
     repoView = \{ url, name, starCount } -> 
       li []
         [ a [ href url ] [ text name ]
         , span [] [ text <| " stars: " ++ (toString starCount) ]
         ]
+
+    items = List.map repoView userRepos
+
+    pagedItems = case pagination of
+      Nothing -> items
+
+      Just { itemsPerPage, currentPage } ->
+        items 
+          |> List.drop (currentPage * itemsPerPage)
+          |> List.take itemsPerPage
   in
-    List.map repoView userRepos
-      |> List.drop (currentPage * reposPerPage)
-      |> List.take reposPerPage
-      |> ul []
-    --ul [] <| List.map repoView repos
+    ul [] pagedItems
 
 getReposFromJson : Json.Decoder (List Repo)
 getReposFromJson =
@@ -171,4 +185,4 @@ parseDateDecoder dateString =
 -- usuwanie userRepo na 'x' na elemencie listy userReposów
 -- cache w localstorage listy userReposów
 -- reorder userReposów, kolejność na podstawie różnych typów sortowania + wybrana przez usera (drag & drop do ustalania kolejności)
--- paginacja dla repo konkretnego usera
+-- handle github api limit for 30 items for page
