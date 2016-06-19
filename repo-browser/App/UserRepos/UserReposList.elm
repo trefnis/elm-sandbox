@@ -53,26 +53,33 @@ update msg ({ userReposList, sorting } as model) =
           )
 
       UserReposMsg ( msg, updatedRepos ) ->
-        let newUserRepos = case msg of
+        case msg of
           UserRepos.Inner innerMsg ->
             let 
               update = (\repos -> 
                 if repos == updatedRepos then
                   UserRepos.update innerMsg updatedRepos
                 else
-                  repos
+                  ( repos, Cmd.none )
               )
+
+              extractCmds cmds =
+                let getUserRepoMsg msg = Cmd.map UserReposMsg msg
+                in
+                  List.map getUserRepoMsg cmds |> Cmd.batch
             in 
               List.map update model.userReposList
+                |> List.unzip
+                |> \( newUserRepos, cmds) -> ( newUserRepos, extractCmds cmds)
 
           UserRepos.Outer outerMsg ->
-            case outerMsg of
+            let newUserRepos = case outerMsg of
               UserRepos.NoOp -> userReposList
 
               UserRepos.Remove ->
                 List.filter (\repos -> updatedRepos /= repos) userReposList
-        in
-          ( newUserRepos, Cmd.none )
+            in
+              ( newUserRepos, Cmd.none )
 
       Sort sorting ->
         ( sortBy sorting userReposList, Cmd.none )

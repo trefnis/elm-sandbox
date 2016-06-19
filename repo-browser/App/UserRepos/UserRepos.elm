@@ -22,28 +22,30 @@ type alias Model =
   { userLogin : String
   , avatarUrl : String
   , userRepos : List Repo
+  , reposCount : Int
   , areReposExpanded : Bool
   , isLoading : Bool
   , pagination : Maybe Pagination.Model
   }
 
+init : String -> String -> Model
+init userLogin avatarUrl =
+  { userLogin = userLogin
+  , avatarUrl = avatarUrl
+  , userRepos = []
+  , reposCount = 0
+  , areReposExpanded = False
+  , isLoading = True
+  , pagination = Nothing
+  }
+
 new : String -> String -> ( Model, Cmd ( Msg, Model ) )
 new userLogin avatarUrl = 
   let 
-    optimisticUser =
-      { userLogin = userLogin
-      , avatarUrl = avatarUrl
-      , userRepos = []
-      , areReposExpanded = False
-      , isLoading = True
-      , pagination = Nothing
-      }
-
-    getUserRepos =
-      Cmd.map
-        (\apiStatus -> ( Inner <| FetchStatus apiStatus, optimisticUser ) )
-        (Api.getUserRepos getReposFromJson userLogin)
-  in ( optimisticUser, getUserRepos )
+    optimisticUser = init userLogin avatarUrl
+    cmd = getUserReposCmd optimisticUser 1
+  in 
+    ( optimisticUser, cmd )
 
 reposPerPage = 10
 
@@ -78,47 +80,61 @@ type InnerMsg
   = Expand
   | Fold
   | PaginationMsg Pagination.Msg
-  | FetchStatus (Api.Status (List Repo))
+  | FetchStatus (Api.Status ( List Repo, Int ))
 
 type OuterMsg 
   = NoOp
   | Remove
 
-update : InnerMsg -> Model -> Model
+update : InnerMsg -> Model -> ( Model, Cmd ( Msg, Model ) )
 update msg model =
   case msg of
     Expand ->
-      { model | areReposExpanded = True }
+      ( { model | areReposExpanded = True }, Cmd.none )
 
     Fold ->
-      { model | areReposExpanded = False }
+      ( { model | areReposExpanded = False }, Cmd.none )
 
     PaginationMsg msg ->
       let
         pagination = model.pagination `Maybe.andThen` 
           (Result.toMaybe << Pagination.update msg)
+
+        newModel = { model | pagination = pagination }
+        page = 
+          Maybe.withDefault 0
+            <| Maybe.map .currentPage pagination
+
+        cmd = 
+          getUserReposCmd model (page + 1)
       in
-        { model | pagination = pagination }       
+        ( newModel, cmd )
 
     (FetchStatus status) ->
-      case status of
+      let newModel = case status of
         Api.FetchFailed error -> model --TODO
 
-        Api.FetchSucceed repos ->
+        Api.FetchSucceed ( repos, reposCount ) ->
           let 
-            reposCount = List.length repos
             pagination = 
               if reposCount > reposPerPage then
                 Just <| Pagination.init reposPerPage reposCount
               else
                 Nothing
           in
-            { model | 
+            Debug.log "fetch" <| { model | 
               userRepos = repos
             , isLoading = False
             , pagination = pagination 
             }
+      in
+        ( newModel, Cmd.none )
 
+getUserReposCmd : Model -> Int -> Cmd ( Msg, Model )
+getUserReposCmd model page =
+  Cmd.map 
+    (\msg -> ( msg, model )) 
+    (getUserRepos model.userLogin page)
 
 -- VIEW
 
@@ -165,6 +181,28 @@ reposView { userRepos, pagination } =
   in
     ul [] pagedItems
 
+
+-- API
+
+getUserRepos : String -> Int -> Cmd Msg
+getUserRepos userLogin page =
+  let
+    userReposDecoder : Json.Decoder ( List Repo, Int )
+    userReposDecoder = 
+      ( Json.object2 (,)
+          ("items" := getReposFromJson)
+          ("total_count" := Json.int)
+      )
+
+    searchUserRepos = 
+      Api.searchUserRepos 
+        reposPerPage 
+        userReposDecoder
+        userLogin
+        page
+  in
+    Cmd.map (Inner << FetchStatus) searchUserRepos
+
 getReposFromJson : Json.Decoder (List Repo)
 getReposFromJson =
   Json.list <| 
@@ -185,4 +223,4 @@ parseDateDecoder dateString =
 -- usuwanie userRepo na 'x' na elemencie listy userReposów
 -- cache w localstorage listy userReposów
 -- reorder userReposów, kolejność na podstawie różnych typów sortowania + wybrana przez usera (drag & drop do ustalania kolejności)
--- handle github api limit for 30 items for page
+-- add throttling of autocomplete requests
