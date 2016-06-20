@@ -4,6 +4,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.App as Html
 import Html.Events as Events exposing (on, onInput)
+import Time
 import App.SearchUserBar.SearchUserBar as SearchUserBar exposing (SearchResult)
 import App.UserRepos.UserReposList as UserReposList
 
@@ -97,7 +98,6 @@ view ({ searchUserBar, userReposList } as model) =
   div []
     [ p [] [ text "Find user" ]
     , userReposView userReposList
-    --, p [] [ text <| "user: " ++ model.selectedLogin ]
     , searchUserBarView searchUserBar
     ]
 

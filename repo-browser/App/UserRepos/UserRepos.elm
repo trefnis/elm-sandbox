@@ -122,7 +122,7 @@ update msg model =
               else
                 Nothing
           in
-            Debug.log "fetch" <| { model | 
+            { model | 
               userRepos = repos
             , isLoading = False
             , pagination = pagination 
@@ -219,8 +219,5 @@ parseDateDecoder dateString =
     Ok date -> Json.succeed date
     Err err -> Json.fail err
 
--- dodawanie userRepo na kliknięcie elementu z autocomplete (może być jakiś przycisk ew.) 
--- usuwanie userRepo na 'x' na elemencie listy userReposów
 -- cache w localstorage listy userReposów
 -- reorder userReposów, kolejność na podstawie różnych typów sortowania + wybrana przez usera (drag & drop do ustalania kolejności)
--- add throttling of autocomplete requests

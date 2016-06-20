@@ -5,9 +5,13 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick, onSubmit, onFocus, onBlur, onWithOptions, on)
 import String
 import Mouse
-import App.Api.Api as Api
+import Time
+import Task
 import Json.Decode exposing ((:=))
 import Json.Encode
+
+import App.Api.Api as Api
+import App.Wait.Wait as Wait
 
 -- MODEL
 
@@ -17,6 +21,7 @@ type alias Model searchResult =
   , isSearching : Bool
   , isError : Bool
   , shouldExpand : Bool
+  , maybeWaitModel : Maybe Wait.Model
   }
 
 init : Model searchResult
@@ -26,6 +31,7 @@ init =
   , isSearching = False
   , isError = False
   , shouldExpand = False
+  , maybeWaitModel = Nothing 
   }
 
 
@@ -40,6 +46,8 @@ type Msg searchResult
   | Submit
   | SearchStatus (Api.Status (List searchResult))
   | ResultSelected searchResult
+  | WaitMsg Wait.Msg
+  | StartWaitingForInput Wait.Model
 
 update 
   : (String -> Cmd (Msg result))
@@ -69,12 +77,38 @@ update find msg model =
             textInput = input
           , shouldExpand = False
           , searchResults = Nothing
-          }        
+          , maybeWaitModel = Nothing
+          }
+        waitDuration = (Time.millisecond * 500)
+        startWaitingCmd =
+          Task.perform 
+            (always Submit)
+            (\now -> StartWaitingForInput <| Wait.init waitDuration now)
+            Time.now
       in
-        if shouldSubmit then 
-          update find Submit model
-        else 
-          bareModel model
+        ( model
+        , if hasSufficientText input then startWaitingCmd else Cmd.none
+        , Nothing 
+        )
+
+    WaitMsg msg ->
+      case model.maybeWaitModel of
+        Nothing -> bareModel model
+
+        Just waitModel ->
+          let 
+            ( newWaitModel, isReady ) = Wait.update msg waitModel
+            newMaybeWaitModel = if not isReady then Just newWaitModel else Nothing
+
+            newModel = { model | maybeWaitModel = newMaybeWaitModel }
+          in 
+            if isReady then
+              update find Submit newModel
+            else
+              bareModel newModel
+
+    StartWaitingForInput waitModel ->
+      bareModel { model | maybeWaitModel = Just waitModel }
 
     Submit ->
       let newModel = { model | shouldExpand = True, isSearching = True }
@@ -161,7 +195,17 @@ swallow = { stopPropagation = True, preventDefault = True }
 
 subscriptions : Model searchResult -> Sub (Msg searchResult)
 subscriptions model =
-  Mouse.clicks ClickOutside
+  let waitSub = 
+    case model.maybeWaitModel of
+      Just waitModel ->
+        Sub.map WaitMsg <| Wait.check waitModel
+
+      Nothing -> Sub.none
+  in
+    Sub.batch
+      [ Mouse.clicks ClickOutside
+      , waitSub
+      ]
 
 -- PORTS
 
