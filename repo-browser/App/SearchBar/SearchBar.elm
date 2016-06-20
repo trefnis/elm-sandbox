@@ -21,7 +21,7 @@ type alias Model searchResult =
   , isSearching : Bool
   , isError : Bool
   , shouldExpand : Bool
-  , maybeWaitModel : Maybe Wait.Model
+  , waitModel : Wait.Model
   }
 
 init : Model searchResult
@@ -31,7 +31,7 @@ init =
   , isSearching = False
   , isError = False
   , shouldExpand = False
-  , maybeWaitModel = Nothing 
+  , waitModel = Wait.init
   }
 
 
@@ -77,13 +77,13 @@ update find msg model =
             textInput = input
           , shouldExpand = False
           , searchResults = Nothing
-          , maybeWaitModel = Nothing
+          , waitModel = Nothing
           }
         waitDuration = (Time.millisecond * 500)
         startWaitingCmd =
           Task.perform 
             (always Submit)
-            (\now -> StartWaitingForInput <| Wait.init waitDuration now)
+            (\now -> StartWaitingForInput <| Wait.start waitDuration now)
             Time.now
       in
         ( model
@@ -92,23 +92,17 @@ update find msg model =
         )
 
     WaitMsg msg ->
-      case model.maybeWaitModel of
-        Nothing -> bareModel model
-
-        Just waitModel ->
-          let 
-            ( newWaitModel, isReady ) = Wait.update msg waitModel
-            newMaybeWaitModel = if not isReady then Just newWaitModel else Nothing
-
-            newModel = { model | maybeWaitModel = newMaybeWaitModel }
-          in 
-            if isReady then
-              update find Submit newModel
-            else
-              bareModel newModel
+      let
+        ( newWaitModel, isReady ) = Wait.update msg model.waitModel
+        newModel = { model | waitModel = newWaitModel }
+      in
+        if isReady then
+          update find Submit newModel
+        else
+          bareModel newModel
 
     StartWaitingForInput waitModel ->
-      bareModel { model | maybeWaitModel = Just waitModel }
+      bareModel { model | waitModel = waitModel }
 
     Submit ->
       let newModel = { model | shouldExpand = True, isSearching = True }
@@ -195,17 +189,10 @@ swallow = { stopPropagation = True, preventDefault = True }
 
 subscriptions : Model searchResult -> Sub (Msg searchResult)
 subscriptions model =
-  let waitSub = 
-    case model.maybeWaitModel of
-      Just waitModel ->
-        Sub.map WaitMsg <| Wait.check waitModel
-
-      Nothing -> Sub.none
-  in
-    Sub.batch
-      [ Mouse.clicks ClickOutside
-      , waitSub
-      ]
+  Sub.batch
+    [ Mouse.clicks ClickOutside
+    , Sub.map WaitMsg <| Wait.check model.waitModel
+    ]
 
 -- PORTS
 

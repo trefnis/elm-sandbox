@@ -1,23 +1,20 @@
-module App.Wait.Wait exposing (Model, Msg, init, update, check) --where
+module App.Wait.Wait exposing (Model, Msg, init, update, check, start) --where
 
 import Time exposing (Time) 
 
 --MODEL
 
 type alias Model =
-  { timeStartedWaiting : Time
-  , expectedWaitingTime : Time
-  , isReady : Bool
-  }
+  Maybe
+    { timeStartedWaiting : Time
+    , expectedWaitingTime : Time
+    , isReady : Bool
+    }
 
 type alias Progress = Float
 
-init : Time -> Time -> Model
-init expectedWaitingTime now =
-  { timeStartedWaiting = now
-  , expectedWaitingTime = expectedWaitingTime
-  , isReady = False
-  }
+init : Model
+init = Nothing
 
 
 -- UPDATE
@@ -26,23 +23,35 @@ type Msg
   = Tick Time
 
 update : Msg -> Model -> ( Model, Bool )
-update 
-  (Tick newTime) 
-  ({ timeStartedWaiting
-  , expectedWaitingTime
-  } as model) =
-  let
-    timeAlreadyWaiting = Time.inMilliseconds (newTime - timeStartedWaiting)
-    isReady = expectedWaitingTime <= timeAlreadyWaiting
+update (Tick newTime) model =
+  case model of
+    Nothing -> ( Nothing, False )
 
-    newModel = 
-      { model | isReady = isReady }
+    Just
+      ({ timeStartedWaiting
+      , expectedWaitingTime
+      } as oldModel) ->
+      let
+        timeAlreadyWaiting = Time.inMilliseconds (newTime - timeStartedWaiting)
+        isReady = expectedWaitingTime <= timeAlreadyWaiting
 
-    in ( newModel, isReady )
+        newModel = if isReady then Nothing else Just oldModel
+
+        in ( newModel, isReady )
+
+
+start : Time -> Time -> Model
+start expectedWaitingTime now =
+  Just
+    { timeStartedWaiting = now
+    , expectedWaitingTime = expectedWaitingTime
+    , isReady = False
+    }
 
 check : Model -> Sub Msg
-check { isReady, expectedWaitingTime } =
-  if isReady then
-    Sub.none
-  else
-    Time.every expectedWaitingTime Tick
+check model =
+  case model of
+    Nothing -> Sub.none
+
+    Just { expectedWaitingTime } ->
+      Time.every expectedWaitingTime Tick
