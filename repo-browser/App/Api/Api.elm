@@ -3,7 +3,7 @@ module App.Api.Api exposing
   , getUserRepos
   , searchUserRepos
   , Status(FetchFailed, FetchSucceed)
-  ) --where
+  )
 
 import Http exposing (defaultSettings, fromJson)
 import Task exposing (Task)
@@ -60,7 +60,6 @@ searchUserRepos perPage getUserReposFromJson userName page =
       }
 
   in
-    --apiTask ((fromJson getUserReposFromJson) (Http.send settings request))
     apiTask
       <| fromJson getUserReposFromJson
       <| Http.send settings request 

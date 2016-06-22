@@ -1,4 +1,12 @@
-module App.SearchUserBar.SearchUserBar exposing (Model, SearchResult, Msg, init, update, view, subscriptions) --where
+module App.SearchUserBar.SearchUserBar exposing
+  ( Model
+  , SearchResult
+  , Msg
+  , init
+  , update
+  , view
+  , subscriptions
+  )
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -16,9 +24,9 @@ type alias Model = SearchBar.Model SearchResult
 
 init = SearchBar.init
 
-type alias SearchResult = 
+type alias SearchResult =
   { userLogin : String
-  , avatarUrl : String 
+  , avatarUrl : String
   }
 
 

@@ -1,4 +1,11 @@
-port module App.SearchBar.SearchBar exposing (Model, Msg(SearchStatus, ResultSelected), init, update, view, subscriptions) --where
+port module App.SearchBar.SearchBar exposing
+  ( Model
+  , Msg(SearchStatus, ResultSelected)
+  , init
+  , update
+  , view
+  , subscriptions
+  )
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -49,73 +56,96 @@ type Msg searchResult
   | WaitMsg Wait.Msg
   | StartWaitingForInput Wait.Model
 
-update 
+update
   : (String -> Cmd (Msg result))
   -> Msg result
   -> Model result
   -> ( Model result, Cmd (Msg result), Maybe result )
 
-update find msg model =
+update find msg =
   case msg of
-    GotFocus event ->
-      ( { model | shouldExpand = hasResults model }, selectText event, Nothing )
+    GotFocus event -> handleGotFocus event
+    ClickInside -> handleClickInside
+    ClickOutside _ -> handleClickOutside find
+    LostFocus -> handleLostFocus
+    TextInput input -> handleTextInput input
+    WaitMsg msg -> handleWaitMsg find msg
+    StartWaitingForInput waitModel -> handleStartWaitingForInput waitModel
+    Submit -> handleSubmit find
+    SearchStatus status -> handleSearchStatus status
+    ResultSelected result -> handleResultSelected result
 
-    ClickInside ->
-      bareModel model
+handleGotFocus event model =
+  ( { model | shouldExpand = hasResults model }
+  , selectText event
+  , Nothing
+  )
 
-    ClickOutside position ->
-      update find LostFocus model
+handleClickInside model =
+  bareModel model
 
-    LostFocus ->
-      bareModel { model | shouldExpand = False }
+handleClickOutside find model =
+  update find LostFocus model
 
-    TextInput input ->
-      let
-        shouldSubmit = hasSufficientText input
-        model = 
-          { model | 
-            textInput = input
-          , shouldExpand = False
-          , searchResults = Nothing
-          , waitModel = Nothing
-          }
-        waitDuration = (Time.millisecond * 500)
-        startWaitingCmd =
-          Task.perform 
-            (always Submit)
-            (\now -> StartWaitingForInput <| Wait.start waitDuration now)
-            Time.now
-      in
-        ( model
-        , if hasSufficientText input then startWaitingCmd else Cmd.none
-        , Nothing 
-        )
+handleLostFocus model =
+  bareModel { model | shouldExpand = False }
 
-    WaitMsg msg ->
-      let
-        ( newWaitModel, isReady ) = Wait.update msg model.waitModel
-        newModel = { model | waitModel = newWaitModel }
-      in
-        if isReady then
-          update find Submit newModel
-        else
-          bareModel newModel
+handleTextInput input model =
+  let
+    shouldSubmit = hasSufficientText input
 
-    StartWaitingForInput waitModel ->
-      bareModel { model | waitModel = waitModel }
+    model =
+      { model |
+        textInput = input
+      , shouldExpand = False
+      , searchResults = Nothing
+      , waitModel = Wait.init
+      }
 
-    Submit ->
-      let newModel = { model | shouldExpand = True, isSearching = True }
-      in
-        ( newModel, find model.textInput, Nothing )
+    waitDuration = (Time.millisecond * 500)
 
-    SearchStatus (Api.FetchFailed error) ->
+    startWaitingCmd =
+      Task.perform
+        (always Submit)
+        (\now -> StartWaitingForInput <| Wait.start waitDuration now)
+        Time.now
+  in
+    ( model
+    , if hasSufficientText input then startWaitingCmd else Cmd.none
+    , Nothing
+    )
+
+handleWaitMsg find msg model =
+  let
+    ( newWaitModel, isReady ) = Wait.update msg model.waitModel
+    newModel = { model | waitModel = newWaitModel }
+  in
+    if isReady then
+      update find Submit newModel
+    else
+      bareModel newModel
+
+handleStartWaitingForInput waitModel model =
+  bareModel { model | waitModel = waitModel }
+
+handleSubmit find model =
+  let newModel = { model | shouldExpand = True, isSearching = True }
+  in
+    ( newModel
+    , find model.textInput
+    , Nothing
+    )
+
+handleSearchStatus status model =
+  case status of
+    Api.FetchFailed error ->
       bareModel { model | isError = True, isSearching = False }
 
-    SearchStatus (Api.FetchSucceed results) ->
+    Api.FetchSucceed results ->
       let
         searchResults = Just results
-        newModel = 
+
+        newModel =
           { model |
             isSearching = False
           , searchResults = searchResults
@@ -123,8 +153,11 @@ update find msg model =
       in
         bareModel newModel
 
-    ResultSelected result ->
-        ( model, Cmd.none, Just result )
+handleResultSelected result model =
+  ( { model | shouldExpand = False }
+  , Cmd.none
+  , Just result
+  )
 
 bareModel : Model result -> ( Model result, Cmd (Msg result), Maybe result )
 bareModel model =
@@ -135,7 +168,7 @@ hasResults model =
     Nothing -> False
     Just _ -> True
 
-hasSufficientText textInput = 
+hasSufficientText textInput =
   String.length textInput > 2
 
 
@@ -147,10 +180,10 @@ view
   -> Html (Msg result)
 
 view singleResultView model =
-  Html.form 
+  Html.form
     [ onSubmit Submit, onWithOptions "click" swallow (Json.Decode.succeed ClickInside) ]
-    [ input 
-        [ placeholder "Enter user name" 
+    [ input
+        [ placeholder "Enter user name"
         , onInput TextInput
         , on "focus" (Json.Decode.map GotFocus Json.Decode.value)
         ] []
@@ -168,7 +201,7 @@ resultsView singleResultView searchResults =
 
     Just results ->
       let
-        listItem = \result -> 
+        listItem = \result ->
           li
             [ onWithOptions "click" swallow (Json.Decode.succeed (ResultSelected result)) ]
             [ singleResultView result ]

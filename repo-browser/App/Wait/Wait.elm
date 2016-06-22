@@ -1,6 +1,6 @@
-module App.Wait.Wait exposing (Model, Msg, init, update, check, start) --where
+module App.Wait.Wait exposing (Model, Msg, init, update, check, start)
 
-import Time exposing (Time) 
+import Time exposing (Time)
 
 --MODEL
 
@@ -27,12 +27,14 @@ update (Tick newTime) model =
   case model of
     Nothing -> ( Nothing, False )
 
-    Just
-      ({ timeStartedWaiting
+    Just (
+      { timeStartedWaiting
       , expectedWaitingTime
-      } as oldModel) ->
+      } as oldModel
+      ) ->
       let
         timeAlreadyWaiting = Time.inMilliseconds (newTime - timeStartedWaiting)
+
         isReady = expectedWaitingTime <= timeAlreadyWaiting
 
         newModel = if isReady then Nothing else Just oldModel

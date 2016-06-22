@@ -24,7 +24,7 @@ main =
 
 -- MODEL
 
-type alias Model = 
+type alias Model =
   { searchUserBar : SearchUserBar.Model
   , userReposList : UserReposList.Model
   , selectedUser : Maybe User
@@ -32,8 +32,8 @@ type alias Model =
 
 init : ( Model, Cmd Msg )
 init =
-  let 
-    model = 
+  let
+    model =
       { searchUserBar = SearchUserBar.init
       , userReposList = UserReposList.init
       , selectedUser = Nothing
@@ -45,51 +45,50 @@ init =
 -- UPDATE
 
 type Msg
-  = NoOp
-  | SearchBarMsg SearchUserBar.Msg
+  = SearchBarMsg SearchUserBar.Msg
   | UserReposListMsg UserReposList.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg ({ searchUserBar, userReposList } as model) =
+update msg =
   case msg of
-    NoOp ->
-      ( model, Cmd.none )
+    SearchBarMsg msg -> handleSearchBarMsg msg
+    UserReposListMsg msg -> handleUserReposListMsg msg
 
-    SearchBarMsg msg ->
-      let 
-        ( updatedSearchUserBar, searchUserBarCmd, selectedUser ) = 
-          SearchUserBar.update msg searchUserBar
 
-        ( userReposList, userReposListCmd ) =
-          case selectedUser of
-            Just user ->
-              UserReposList.update (UserReposList.Add user) model.userReposList
+handleSearchBarMsg msg ({ searchUserBar, userReposList } as model) =
+  let
+    ( updatedSearchUserBar, searchUserBarCmd, selectedUser ) =
+      SearchUserBar.update msg searchUserBar
 
-            Nothing -> ( model.userReposList, Cmd.none )
+    ( userReposList, userReposListCmd ) =
+      case selectedUser of
+        Just user ->
+          UserReposList.update (UserReposList.Add user) model.userReposList
 
-        newModel = 
-          { model | 
-            searchUserBar = updatedSearchUserBar
-          , userReposList = userReposList
-          , selectedUser = selectedUser 
-          }
+        Nothing -> ( model.userReposList, Cmd.none )
 
-        cmd =
-          Cmd.batch 
-            [ Cmd.map SearchBarMsg searchUserBarCmd
-            , Cmd.map UserReposListMsg userReposListCmd
-            ]
-      in
-        ( newModel , cmd )
+    newModel =
+      { model |
+        searchUserBar = updatedSearchUserBar
+      , userReposList = userReposList
+      , selectedUser = selectedUser
+      }
 
-    UserReposListMsg msg ->
-      let ( userReposList, userReposListCmd ) = 
-        UserReposList.update msg userReposList
-      in 
-        ( { model | userReposList = userReposList }
+    cmd =
+      Cmd.batch
+        [ Cmd.map SearchBarMsg searchUserBarCmd
         , Cmd.map UserReposListMsg userReposListCmd
-        )
+        ]
+  in
+    ( newModel , cmd )
 
+handleUserReposListMsg msg ({ userReposList } as model) =
+  let ( userReposList, userReposListCmd ) =
+    UserReposList.update msg userReposList
+  in
+    ( { model | userReposList = userReposList }
+    , Cmd.map UserReposListMsg userReposListCmd
+    )
 
 -- VIEW
 

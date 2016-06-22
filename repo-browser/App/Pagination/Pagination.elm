@@ -1,4 +1,4 @@
-module App.Pagination.Pagination exposing (Model, Msg, init, update, view) --where 
+module App.Pagination.Pagination exposing (Model, Msg, init, update, view)
 
 import Html exposing (Html, div, ul, li, button, text)
 import Html.Events exposing (onClick)
@@ -14,7 +14,7 @@ type alias Model =
   }
 
 init : Int -> Int -> Model
---init itemsPerPage elementsCount = 
+--init itemsPerPage elementsCount =
 init = Model 0
 
 -- UPDATE
@@ -30,7 +30,7 @@ update (Page number) ({ currentPage } as model) =
       Ok number
     else
       outOfRange
-  in 
+  in
   case newCurrentPageResult of
     Err err -> Err err
     Ok newCurrentPage ->
@@ -65,9 +65,9 @@ view ({ currentPage } as model) =
     pageNumbersView =
       [ prevView currentPage
       , firstNumberView middleNumbers currentPage
-      ] 
+      ]
       ++
-        middleNumbersView 
+        middleNumbersView
       ++
       [ lastNumberView middleNumbers lastPage currentPage
       , nextView currentPage lastPage
@@ -76,17 +76,17 @@ view ({ currentPage } as model) =
     ul [] pageNumbersView
 
 pageNumberView number pageText currentPage =
-  li [ onClick (Page number) ] 
-    [ text 
+  li [ onClick (Page number) ]
+    [ text
         <| pageText ++ if number == currentPage then "*" else ""
     ]
 
 regularPageView number = pageNumberView number (toString <| number + 1)
 
-firstNumberView middleNumbers = 
-  if List.member 0 middleNumbers then 
+firstNumberView middleNumbers =
+  if List.member 0 middleNumbers then
     always <| text ""
-  else if List.member 1 middleNumbers then 
+  else if List.member 1 middleNumbers then
     regularPageView 0
   else
     pageNumberView 0 "1 ..."
@@ -100,9 +100,9 @@ lastNumberView middleNumbers lastPage =
     pageNumberView lastPage ("... " ++ toString lastPage)
 
 prevView current =
-  li [] 
-    [ button 
-        [ onClick (Page <| current - 1) 
+  li []
+    [ button
+        [ onClick (Page <| current - 1)
         , disabled (current <= 0)
         ]
         [ text "prev " ]
@@ -120,7 +120,7 @@ nextView current last =
 
 numbersBetween : Int -> Int -> List Int
 numbersBetween from to =
-  if from == to then 
+  if from == to then
     [from]
   else
     from :: numbersBetween (from + 1) to
